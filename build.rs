@@ -1,4 +1,4 @@
-#![warn(clippy::pedantic)]
+use std::io::Write;
 
 fn main() {
     let out_dir = std::env::var("OUT_DIR").unwrap();
@@ -58,7 +58,6 @@ fn gen_insn_tests(out_dir: &str) {
         println!("cargo:rerun-if-changed={testcase}");
         println!("cargo:rerun-if-changed={binary}");
 
-        use std::io::Write;
         write!(
             f,
             "
