@@ -117,26 +117,25 @@ impl CpuRV64I {
             0b0010011 => {
                 let imm = ((instruction & 0xfff00000) as i32 as i64 >> 20) as u64; // sign extended immediate
 
-                match (funct7, funct3) {
+                self.registers[rd] = match (funct7, funct3) {
                     // ADDI
-                    (_, 0b000) => self.registers[rd] = self.registers[rs1].wrapping_add(imm),
+                    (_, 0b000) => self.registers[rs1].wrapping_add(imm),
                     // SLTI
-                    (_, 0b010) => todo!("SLTI (RV32I"),
+                    (_, 0b010) => (self.registers[rs1] as i64).lt(&(imm as i64)) as u64,
                     // SLTIU
-                    (_, 0b011) => todo!("SLTIU (RV32I"),
+                    (_, 0b011) => self.registers[rs1].lt(&imm) as u64,
                     // XORI
-                    (_, 0b100) => todo!("XORI (RV32I"),
+                    (_, 0b100) => self.registers[rs1].bitxor(imm),
                     // ORI
-                    (_, 0b110) => todo!("ORI (RV32I"),
+                    (_, 0b110) => self.registers[rs1].bitor(imm),
                     // ANDI
-                    (_, 0b111) => todo!("ANDI (RV32I"),
-                    // SLLI
-                    (0b0000000, 0b001) => todo!("SLLI (RV32I"),
-                    // SRLI
-                    (0b0000000, 0b101) => todo!("SRLI (RV32I"),
-                    // SRAI
-                    (0b0100000, 0b101) => todo!("SRAI (RV32I"),
-
+                    (_, 0b111) => self.registers[rs1].bitand(imm),
+                    // SLLI (logical left shift)
+                    (0b0000000, 0b001) => self.registers[rs1].shl(rs2),
+                    // SRLI (logical right shift)
+                    (0b0000000, 0b101) => self.registers[rs1].shr(rs2),
+                    // SRAI (arithmetic right shift)
+                    (0b0100000, 0b101) => (self.registers[rs1] as i64).shr(rs2) as u64,
                     _ => return Err(InstructionNotImplemented(instruction)),
                 }
             }
