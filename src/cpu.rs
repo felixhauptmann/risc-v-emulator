@@ -283,7 +283,7 @@ mod test {
     use crate::bus::Bus;
     use crate::cpu::{CpuRV64I, RegisterDump};
     use crate::dram::Dram;
-    use std::fmt::format;
+    use std::num::ParseIntError;
     use std::str::FromStr;
 
     #[test]
@@ -293,7 +293,21 @@ mod test {
     }
 
     // TODO parse at compile time
-    fn parse_expected(testcase: &str) -> (RegisterDump, Option<String>) {
+    fn parse_testcase(testcase: &str) -> (RegisterDump, Option<String>) {
+        fn parse_u64(s: &str) -> Result<u64, ParseIntError> {
+            if let Some(s) = s.strip_prefix("0x") {
+                u64::from_str_radix(s, 16)
+            } else if let Some(s) = s.strip_prefix("0o") {
+                u64::from_str_radix(s, 8)
+            } else if let Some(s) = s.strip_prefix("0b") {
+                u64::from_str_radix(s, 2)
+            } else if let Some(s) = s.strip_prefix('-') {
+                u64::from_str(s).map(|v| -(v as i128) as u64)
+            } else {
+                u64::from_str(s)
+            }
+        }
+
         let comments = testcase
             .lines()
             .enumerate()
@@ -313,18 +327,15 @@ mod test {
                 Some(reg) => {
                     expected.registers[usize::from_str(reg)
                         .unwrap_or_else(|_| panic!("Could not parse key {k} in line {line}"))] =
-                        Some(
-                            u64::from_str(v).unwrap_or_else(|_| {
-                                panic!("Could not parse value {v} in line {line}")
-                            }),
-                        )
+                        Some(parse_u64(v).unwrap_or_else(|e| {
+                            panic!("Could not parse value {v} in line {line}: {e}")
+                        }))
                 }
                 None => match k {
                     "pc" => {
-                        expected.pc =
-                            Some(u64::from_str(v).unwrap_or_else(|_| {
-                                panic!("Could not parse value {v} in line {line}")
-                            }))
+                        expected.pc = Some(parse_u64(v).unwrap_or_else(|e| {
+                            panic!("Could not parse value {v} in line {line}: {e}")
+                        }))
                     }
                     _ => {
                         panic!("Could not parse key {k} in line {line}")
@@ -334,7 +345,7 @@ mod test {
         }
 
         let mut comment = None;
-        for (line, k, v) in meta {
+        for (_line, k, v) in meta {
             if k == "comment" {
                 comment = Some(v.to_string());
             }
@@ -345,14 +356,14 @@ mod test {
 
     /// test runner for instruction tests
     fn execute_insn_test(name: &str, testcase: &str, binary: &[u8]) {
-        let (expected, comment) = parse_expected(testcase);
+        let (expected, comment) = parse_testcase(testcase);
         let comment = comment.map_or("".to_string(), |c| format!(" [{c}]"));
 
         let mut cpu = CpuRV64I::new(Bus::new(Dram::new(binary.to_vec())));
 
         loop {
-            if let Err(e) = cpu.cycle() {
-                eprintln!("Error: {e} Dumping registers:");
+            // were currently just waiting for the cpu tu run into empty memory
+            if cpu.cycle().is_err() {
                 break;
             }
         }
@@ -362,7 +373,7 @@ mod test {
         actual.apply_mask(&expected);
 
         assert_eq!(
-            expected, actual,
+            actual, expected,
             "Actual Register values are not matching expected values defined in {name}!{comment}",
         )
     }
