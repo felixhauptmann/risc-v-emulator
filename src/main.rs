@@ -1,33 +1,34 @@
-use crate::cpu::Cpu64I;
+use crate::bus::Bus;
+use crate::cpu::CpuRV64I;
+use crate::dram::Dram;
 use std::env;
 use std::error::Error;
 use std::fs::File;
-use std::hint::unreachable_unchecked;
 use std::io::Read;
 
+mod bus;
 mod cpu;
-mod ram;
+mod dram;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    const MEMORY_SIZE: u64 = 1024 * 1024 * 128;
-
-    let mut cpu = Cpu64I::new(MEMORY_SIZE);
-
     let args: Vec<String> = env::args().collect();
 
     if args.len() != 2 {
         panic!("Usage: risc-v-emulator <filename>");
     }
     let mut file = File::open(&args[1])?;
-    file.read_to_end(&mut cpu.code)?;
+    let mut code = Vec::new();
+    file.read_to_end(&mut code)?;
+
+    let mut cpu = CpuRV64I::new(Bus::new(Dram::new(code)));
 
     // start execution
-
-    while cpu.pc < cpu.code.len() as u64 {
-        cpu.cycle();
+    loop {
+        if let Err(e) = cpu.cycle() {
+            eprintln!("Error: {e} Dumping registers: {:?}", cpu.dump_registers());
+            break;
+        }
     }
-
-    cpu.dump_registers();
 
     Ok(())
 }
