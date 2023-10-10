@@ -1,10 +1,12 @@
+#![warn(clippy::pedantic)]
+
 fn main() {
     let out_dir = std::env::var("OUT_DIR").unwrap();
 
-    gen_insn_tests(out_dir);
+    gen_insn_tests(&out_dir);
 }
 
-fn gen_insn_tests(out_dir: String) {
+fn gen_insn_tests(out_dir: &str) {
     let destination = std::path::Path::new(&out_dir).join("tests_insn.rs");
     let mut f = std::fs::File::create(&destination).unwrap();
 
@@ -50,7 +52,7 @@ fn gen_insn_tests(out_dir: String) {
         let name = test.path().with_extension("");
         let name = name
             .file_name()
-            .and_then(|s| s.to_str())
+            .and_then(std::ffi::OsStr::to_str)
             .expect("Could not get test name!");
 
         println!("cargo:rerun-if-changed={testcase}");

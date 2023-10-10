@@ -7,10 +7,10 @@ pub struct Dram {
 }
 
 impl Dram {
-    pub fn new(code: Vec<u8>) -> Dram {
+    pub fn new(code: &[u8]) -> Dram {
         // write code at start of new dram
         let mut dram = vec![0; DRAM_SIZE as usize];
-        dram.splice(..code.len(), code.iter().cloned());
+        dram.splice(..code.len(), code.iter().copied());
 
         Self { dram }
     }
@@ -39,23 +39,23 @@ impl Dram {
 impl Dram {
     fn load8(&self, addr: u64) -> u64 {
         let index = addr as usize;
-        self.dram[index] as u64
+        u64::from(self.dram[index])
     }
 
     fn load16(&self, addr: u64) -> u64 {
-        u16::from_le_bytes(
+        u64::from(u16::from_le_bytes(
             self.dram[addr as usize..addr as usize + 2]
                 .try_into()
                 .unwrap(),
-        ) as u64
+        ))
     }
 
     fn load32(&self, addr: u64) -> u64 {
-        u32::from_le_bytes(
+        u64::from(u32::from_le_bytes(
             self.dram[addr as usize..addr as usize + 4]
                 .try_into()
                 .unwrap(),
-        ) as u64
+        ))
     }
 
     fn load64(&self, addr: u64) -> u64 {
@@ -67,7 +67,7 @@ impl Dram {
     }
 
     fn store8(&mut self, addr: u64, value: u64) {
-        self.dram[addr as usize] = value as u8
+        self.dram[addr as usize] = value as u8;
     }
 
     fn store16(&mut self, addr: u64, value: u64) {

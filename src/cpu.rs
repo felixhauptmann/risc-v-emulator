@@ -1,8 +1,9 @@
+use std::fmt::{Debug, Display, Formatter};
+use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr};
+
 use crate::bus::{Bus, DRAM_BASE};
 use crate::cpu::CPUError::InstructionNotImplemented;
 use crate::dram::DRAM_SIZE;
-use std::fmt::{Debug, Display, Formatter};
-use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr};
 
 pub struct CpuRV64I {
     registers: [u64; 32],
@@ -63,15 +64,15 @@ impl CpuRV64I {
         // decode and execute instruction
         match opcode {
             // LUI
-            0b0110111 => todo!("LUI (RV32I)"),
+            0b011_0111 => todo!("LUI (RV32I)"),
             // AUIPC
-            0b0010111 => todo!("AUIPC (RV32I)"),
+            0b001_0111 => todo!("AUIPC (RV32I)"),
             // JAL
-            0b1101111 => todo!("JAL (RV32I)"),
+            0b110_1111 => todo!("JAL (RV32I)"),
             // JALR
-            0b1100111 if funct3 == 0b000 => todo!("JALR (RV32I"),
+            0b110_0111 if funct3 == 0b000 => todo!("JALR (RV32I"),
             // BRANCH
-            0b1100011 => {
+            0b110_0011 => {
                 let funct3 = ((instruction >> 12) & 0x7) as usize; // [14:12]
                 match funct3 {
                     // BEQ
@@ -90,7 +91,7 @@ impl CpuRV64I {
                 }
             }
             // LOAD
-            0b0000011 => match funct3 {
+            0b000_0011 => match funct3 {
                 // LB
                 0b000 => todo!("LB (RV32I"),
                 // LH
@@ -104,7 +105,7 @@ impl CpuRV64I {
                 _ => return Err(InstructionNotImplemented(instruction)),
             },
             // STORE
-            0b0100011 => match funct3 {
+            0b010_0011 => match funct3 {
                 // SB
                 0b000 => todo!("SB (RV32I"),
                 // SH
@@ -114,16 +115,16 @@ impl CpuRV64I {
                 _ => return Err(InstructionNotImplemented(instruction)),
             },
             // OP-IMM
-            0b0010011 => {
-                let imm = ((instruction & 0xfff00000) as i32 as i64 >> 20) as u64; // sign extended immediate
+            0b001_0011 => {
+                let imm = i64::from((instruction & 0xfff_00000) as i32 >> 20) as u64; // sign extended immediate
 
                 self.registers[rd] = match (funct7, funct3) {
                     // ADDI
                     (_, 0b000) => self.registers[rs1].wrapping_add(imm),
                     // SLTI
-                    (_, 0b010) => (self.registers[rs1] as i64).lt(&(imm as i64)) as u64,
+                    (_, 0b010) => u64::from((self.registers[rs1] as i64).lt(&(imm as i64))),
                     // SLTIU
-                    (_, 0b011) => self.registers[rs1].lt(&imm) as u64,
+                    (_, 0b011) => u64::from(self.registers[rs1].lt(&imm)),
                     // XORI
                     (_, 0b100) => self.registers[rs1].bitxor(imm),
                     // ORI
@@ -131,54 +132,54 @@ impl CpuRV64I {
                     // ANDI
                     (_, 0b111) => self.registers[rs1].bitand(imm),
                     // SLLI (logical left shift)
-                    (0b0000000, 0b001) => self.registers[rs1].shl(rs2),
+                    (0b000_0000, 0b001) => self.registers[rs1].shl(rs2),
                     // SRLI (logical right shift)
-                    (0b0000000, 0b101) => self.registers[rs1].shr(rs2),
+                    (0b000_0000, 0b101) => self.registers[rs1].shr(rs2),
                     // SRAI (arithmetic right shift)
-                    (0b0100000, 0b101) => (self.registers[rs1] as i64).shr(rs2) as u64,
+                    (0b010_0000, 0b101) => (self.registers[rs1] as i64).shr(rs2) as u64,
                     _ => return Err(InstructionNotImplemented(instruction)),
                 }
             }
             // OP
-            0b0110011 => {
+            0b011_0011 => {
                 self.registers[rd] = match (funct7, funct3) {
                     // ADD
-                    (0b0000000, 0b000) => self.registers[rs1].wrapping_add(self.registers[rs2]),
+                    (0b000_0000, 0b000) => self.registers[rs1].wrapping_add(self.registers[rs2]),
                     // SUB
-                    (0b0100000, 0b000) => self.registers[rs1].wrapping_sub(self.registers[rs2]),
+                    (0b010_0000, 0b000) => self.registers[rs1].wrapping_sub(self.registers[rs2]),
                     // SLL (logical left shift)
-                    (0b0000000, 0b001) => self.registers[rs1].shl(self.registers[rs2] & 0b11111),
+                    (0b000_0000, 0b001) => self.registers[rs1].shl(self.registers[rs2] & 0b11111),
                     // SLT (rs1 < rs2 signed)
-                    (0b0000000, 0b010) => {
-                        (self.registers[rs1] as i64).lt(&(self.registers[rs2] as i64)) as u64
+                    (0b000_0000, 0b010) => {
+                        u64::from((self.registers[rs1] as i64).lt(&(self.registers[rs2] as i64)))
                     }
                     // SLTU (rs1 < rs2 unsigned)
-                    (0b0000000, 0b011) => (self.registers[rs1]).lt(&(self.registers[rs2])) as u64,
+                    (0b000_0000, 0b011) => u64::from((self.registers[rs1]).lt(&(self.registers[rs2]))),
                     // XOR
-                    (0b0000000, 0b100) => self.registers[rs1].bitxor(self.registers[rs2]),
+                    (0b000_0000, 0b100) => self.registers[rs1].bitxor(self.registers[rs2]),
                     // SRL (logical right shift)
-                    (0b0000000, 0b101) => self.registers[rs1].shr(self.registers[rs2] & 0b11111),
+                    (0b000_0000, 0b101) => self.registers[rs1].shr(self.registers[rs2] & 0b11111),
                     // SRA (arithmetic right shift)
-                    (0b0100000, 0b101) => {
+                    (0b010_0000, 0b101) => {
                         (self.registers[rs1] as i64).shr(self.registers[rs2] & 0b11111) as u64
                     }
                     // OR
-                    (0b0000000, 0b110) => self.registers[rs1].bitor(self.registers[rs2]),
+                    (0b000_0000, 0b110) => self.registers[rs1].bitor(self.registers[rs2]),
                     // AND
-                    (0b0000000, 0b111) => self.registers[rs1].bitand(self.registers[rs2]),
+                    (0b000_0000, 0b111) => self.registers[rs1].bitand(self.registers[rs2]),
                     _ => return Err(InstructionNotImplemented(instruction)),
                 }
             }
             // MISC_MEM
-            0b0001111 if funct3 == 0b000 => todo!("FENCE (RV32I"),
+            0b000_1111 if funct3 == 0b000 => todo!("FENCE (RV32I"),
             // SYSTEM
-            0b1110011 => {
+            0b111_0011 => {
                 let bits_31_20 = ((instruction >> 20) & 0xFFF) as usize;
                 match (bits_31_20, rs1, funct3, rd) {
                     // ECALL
-                    (0b000000000000, 0b00000, 0b000, 0b00000) => todo!("ECALL (RV32I"),
+                    (0b0000_0000_0000, 0b00000, 0b000, 0b00000) => todo!("ECALL (RV32I"),
                     // EBREAK
-                    (0b000000000001, 0b00000, 0b000, 0b00000) => todo!("EBREAK (RV32I"),
+                    (0b0000_0000_0001, 0b00000, 0b000, 0b00000) => todo!("EBREAK (RV32I"),
                     _ => return Err(InstructionNotImplemented(instruction)),
                 }
             }
@@ -219,6 +220,7 @@ pub struct RegisterDump {
     registers: [Option<u64>; 32],
 }
 
+#[cfg(test)]
 impl RegisterDump {
     fn uninitialized() -> Self {
         RegisterDump {
@@ -280,16 +282,17 @@ impl Debug for RegisterDump {
 
 #[cfg(test)]
 mod test {
-    use crate::bus::Bus;
-    use crate::cpu::{CpuRV64I, RegisterDump};
-    use crate::dram::Dram;
     use std::num::ParseIntError;
     use std::str::FromStr;
 
+    use crate::bus::Bus;
+    use crate::cpu::{CpuRV64I, RegisterDump};
+    use crate::dram::Dram;
+
     #[test]
     fn test_cmp_casting() {
-        assert_eq!(1, 69.lt(&420) as u64);
-        assert_eq!(0, 69.lt(&42) as u64);
+        assert_eq!(1, u64::from(69.lt(&420)));
+        assert_eq!(0, u64::from(69.lt(&42)));
     }
 
     // TODO parse at compile time
@@ -302,7 +305,7 @@ mod test {
             } else if let Some(s) = s.strip_prefix("0b") {
                 u64::from_str_radix(s, 2)
             } else if let Some(s) = s.strip_prefix('-') {
-                u64::from_str(s).map(|v| -(v as i128) as u64)
+                u64::from_str(s).map(|v| -i128::from(v) as u64)
             } else {
                 u64::from_str(s)
             }
@@ -329,13 +332,13 @@ mod test {
                         .unwrap_or_else(|_| panic!("Could not parse key {k} in line {line}"))] =
                         Some(parse_u64(v).unwrap_or_else(|e| {
                             panic!("Could not parse value {v} in line {line}: {e}")
-                        }))
+                        }));
                 }
                 None => match k {
                     "pc" => {
                         expected.pc = Some(parse_u64(v).unwrap_or_else(|e| {
                             panic!("Could not parse value {v} in line {line}: {e}")
-                        }))
+                        }));
                     }
                     _ => {
                         panic!("Could not parse key {k} in line {line}")
@@ -357,9 +360,9 @@ mod test {
     /// test runner for instruction tests
     fn execute_insn_test(name: &str, testcase: &str, binary: &[u8]) {
         let (expected, comment) = parse_testcase(testcase);
-        let comment = comment.map_or("".to_string(), |c| format!(" [{c}]"));
+        let comment = comment.map_or(String::new(), |c| format!(" [{c}]"));
 
-        let mut cpu = CpuRV64I::new(Bus::new(Dram::new(binary.to_vec())));
+        let mut cpu = CpuRV64I::new(Bus::new(Dram::new(binary)));
 
         loop {
             // were currently just waiting for the cpu tu run into empty memory
@@ -375,7 +378,7 @@ mod test {
         assert_eq!(
             actual, expected,
             "Actual Register values are not matching expected values defined in {name}!{comment}",
-        )
+        );
     }
     // include tests generated via build.rs
     include!(concat!(env!("OUT_DIR"), "/tests_insn.rs"));
