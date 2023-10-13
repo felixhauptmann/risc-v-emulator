@@ -6,8 +6,15 @@ pub struct Dram {
     dram: Vec<u8>,
 }
 
+#[cfg(test)]
 impl Dram {
-    pub fn new(code: &[u8]) -> Dram {
+    pub fn get_data(&self) -> &Vec<u8> {
+        &self.dram
+    }
+}
+
+impl Dram {
+    pub fn with_code(code: &[u8]) -> Dram {
         // write code at start of new dram
         let mut dram = vec![0; DRAM_SIZE as usize];
         dram.splice(..code.len(), code.iter().copied());
@@ -71,16 +78,21 @@ impl Dram {
     }
 
     fn store16(&mut self, addr: u64, value: u64) {
-        self.dram
-            .splice(addr as usize..2, (value as u16).to_le_bytes());
+        self.dram.splice(
+            addr as usize..addr as usize + 2,
+            (value as u16).to_le_bytes(),
+        );
     }
 
     fn store32(&mut self, addr: u64, value: u64) {
-        self.dram
-            .splice(addr as usize..4, (value as u32).to_le_bytes());
+        self.dram.splice(
+            addr as usize..addr as usize + 4,
+            (value as u32).to_le_bytes(),
+        );
     }
 
     fn store64(&mut self, addr: u64, value: u64) {
-        self.dram.splice(addr as usize..8, value.to_le_bytes());
+        self.dram
+            .splice(addr as usize..addr as usize + 8, value.to_le_bytes());
     }
 }

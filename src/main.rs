@@ -12,6 +12,8 @@ mod cpu;
 mod dram;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    env::set_var("RUST_BACKTRACE", "1");
+
     let args: Vec<String> = env::args().collect();
 
     assert_eq!(args.len(), 2, "Usage: risc-v-emulator <filename>");
@@ -20,7 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut code = Vec::new();
     file.read_to_end(&mut code)?;
 
-    let mut cpu = CpuRV64I::new(Bus::new(Dram::new(&code)));
+    let mut cpu = CpuRV64I::new(Bus::new(Dram::with_code(&code)));
 
     // start execution
     loop {

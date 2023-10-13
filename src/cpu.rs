@@ -64,59 +64,122 @@ impl CpuRV64I {
         // decode and execute instruction
         match opcode {
             // LUI
-            0b011_0111 => todo!("LUI (RV32I)"),
+            0b011_0111 => {
+                let imm = (instruction & 0xFFFFF000) as u64; // TODO sign extend for 64bit?
+                self.registers[rd] = imm;
+            }
             // AUIPC
-            0b001_0111 => todo!("AUIPC (RV32I)"),
+            0b001_0111 => {
+                let imm = (instruction & 0xFFFFF000) as u64; // TODO sign extend for 64bit?
+                self.registers[rd] = self.pc + imm - 4;
+            }
             // JAL
-            0b110_1111 => todo!("JAL (RV32I)"),
+            0b110_1111 => {
+                // [31][19:12][20][30:21]0  ins
+                //  20  19 12  11  10  1    target
+                let imm = ((instruction & 0x80000000) as i32 >> 11) as u64
+                    | (instruction & 0xFF000) as u64
+                    | (instruction & 0x100000) as u64 >> 9
+                    | (instruction & 0x7FE00000) as u64 >> 20;
+
+                self.registers[rd] = self.pc;
+                self.pc = (self.pc - 4).overflowing_add(dbg!(imm)).0;
+            }
             // JALR
-            0b110_0111 if funct3 == 0b000 => todo!("JALR (RV32I"),
+            0b110_0111 if funct3 == 0b000 => {
+                let imm = i64::from((instruction & 0xfff_00000) as i32 >> 20) as u64; // sign extended immediate [31:20]
+
+                self.registers[rd] = self.pc;
+                self.pc = self.registers[rs1].overflowing_add(imm).0 & 0xFFFFFFFFFFFFFFFE;
+            }
             // BRANCH
             0b110_0011 => {
+                // [31][7][30:25][11:8]0  ins
+                //  12  11 10  5  4  1    target
+                let imm = ((instruction & 80000000) as i32 >> 19) as u64
+                    | ((instruction & 0x80) as u64) << 4
+                    | (instruction & 0x7E000000) as u64 >> 20
+                    | (instruction & 0xF00) as u64 >> 7;
+
                 let funct3 = ((instruction >> 12) & 0x7) as usize; // [14:12]
                 match funct3 {
                     // BEQ
-                    0b000 => todo!("BEQ (RV32I"),
+                    0b000 => {
+                        if self.registers[rs1] == self.registers[rs2] {
+                            self.pc = (self.pc - 4).overflowing_add(imm).0
+                        }
+                    }
                     // BNE
-                    0b001 => todo!("BNE (RV32I"),
+                    0b001 => {
+                        if self.registers[rs1] != self.registers[rs2] {
+                            self.pc = (self.pc - 4).overflowing_add(imm).0
+                        }
+                    }
                     // BLT
-                    0b100 => todo!("BLT (RV32I"),
+                    0b100 => {
+                        if (self.registers[rs1] as i64) < self.registers[rs2] as i64 {
+                            self.pc = (self.pc - 4).overflowing_add(imm).0
+                        }
+                    }
                     // BGE
-                    0b101 => todo!("BGE (RV32I"),
+                    0b101 => {
+                        if self.registers[rs1] as i64 >= self.registers[rs2] as i64 {
+                            self.pc = (self.pc - 4).overflowing_add(imm).0
+                        }
+                    }
                     // BLTU
-                    0b110 => todo!("BLTU (RV32I"),
+                    0b110 => {
+                        if self.registers[rs1] < self.registers[rs2] {
+                            self.pc = (self.pc - 4).overflowing_add(imm).0
+                        }
+                    }
                     // BGEU
-                    0b111 => todo!("BGEU (RV32I"),
+                    0b111 => {
+                        if self.registers[rs1] >= self.registers[rs2] {
+                            self.pc = (self.pc - 4).overflowing_add(imm).0
+                        }
+                    }
                     _ => return Err(InstructionNotImplemented(instruction)),
                 }
             }
             // LOAD
-            0b000_0011 => match funct3 {
-                // LB
-                0b000 => todo!("LB (RV32I"),
-                // LH
-                0b001 => todo!("LH (RV32I"),
-                // LW
-                0b010 => todo!("LW (RV32I"),
-                // LBU
-                0b100 => todo!("LBU (RV32I"),
-                // LHU
-                0b101 => todo!("LHU (RV32I"),
-                _ => return Err(InstructionNotImplemented(instruction)),
-            },
+            0b000_0011 => {
+                let imm = i64::from((instruction & 0xfff_00000) as i32 >> 20) as u64; // sign extended immediate [31:20]
+                let address = self.registers[rs1].overflowing_add(imm).0;
+
+                self.registers[rd] = match funct3 {
+                    // LB
+                    0b000 => ((self.bus.load(address, 8)? as u8) as i8) as u64,
+                    // LH
+                    0b001 => ((self.bus.load(address, 16)? as u16) as i16) as u64,
+                    // LW
+                    0b010 => ((self.bus.load(dbg!(address), 32)? as u32) as i32) as u64,
+                    // LBU
+                    0b100 => self.bus.load(address, 8)?,
+                    // LHU
+                    0b101 => self.bus.load(address, 16)?,
+                    _ => return Err(InstructionNotImplemented(instruction)),
+                }
+            }
             // STORE
-            0b010_0011 => match funct3 {
-                // SB
-                0b000 => todo!("SB (RV32I"),
-                // SH
-                0b001 => todo!("SH (RV32I"),
-                // SW
-                0b010 => todo!("SW (RV32I"),
-                _ => return Err(InstructionNotImplemented(instruction)),
-            },
+            0b010_0011 => {
+                let imm = i64::from((instruction & 0xFE00_0000) as i32 >> 20) as u64
+                    | (instruction & 0xF80) as u64 >> 7; // sign extended immediate [31:25][11:7]
+                let address = dbg!(self.registers[rs1]).overflowing_add(dbg!(imm)).0;
+
+                match funct3 {
+                    // SB
+                    0b000 => self.bus.store(address, 8, self.registers[rs2])?,
+                    // SH
+                    0b001 => self.bus.store(address, 16, self.registers[rs2])?,
+                    // SW
+                    0b010 => self.bus.store(address, 32, self.registers[rs2])?,
+                    _ => return Err(InstructionNotImplemented(instruction)),
+                }
+            }
             // OP-IMM
             0b001_0011 => {
-                let imm = i64::from((instruction & 0xfff_00000) as i32 >> 20) as u64; // sign extended immediate
+                let imm = i64::from((instruction & 0xfff_00000) as i32 >> 20) as u64; // sign extended immediate [31:20]
 
                 self.registers[rd] = match (funct7, funct3) {
                     // ADDI
@@ -154,7 +217,9 @@ impl CpuRV64I {
                         u64::from((self.registers[rs1] as i64).lt(&(self.registers[rs2] as i64)))
                     }
                     // SLTU (rs1 < rs2 unsigned)
-                    (0b000_0000, 0b011) => u64::from((self.registers[rs1]).lt(&(self.registers[rs2]))),
+                    (0b000_0000, 0b011) => {
+                        u64::from((self.registers[rs1]).lt(&(self.registers[rs2])))
+                    }
                     // XOR
                     (0b000_0000, 0b100) => self.registers[rs1].bitxor(self.registers[rs2]),
                     // SRL (logical right shift)
@@ -272,7 +337,7 @@ impl Debug for RegisterDump {
         for (i, reg) in self.registers.iter().enumerate() {
             let (v_hex, v) = match reg {
                 None => ("?".to_string(), "?".to_string()),
-                Some(v) => (format!("{v:#010X}"), v.to_string()),
+                Some(v) => (format!("{v:#018X}"), v.to_string()),
             };
             writeln!(f, "x{i:<#2} {:<#4}: {v_hex} {v}", ABI[i])?;
         }
@@ -282,8 +347,10 @@ impl Debug for RegisterDump {
 
 #[cfg(test)]
 mod test {
+    use std::fs;
     use std::num::ParseIntError;
     use std::str::FromStr;
+    use std::time::SystemTime;
 
     use crate::bus::Bus;
     use crate::cpu::{CpuRV64I, RegisterDump};
@@ -295,8 +362,16 @@ mod test {
         assert_eq!(0, u64::from(69.lt(&42)));
     }
 
+    #[test]
+    fn test_unsigned_signed_add() {
+        let a: u64 = 100;
+        let b: i64 = -5;
+        let (c, _) = a.overflowing_add(b as u64);
+        assert_eq!(95, c)
+    }
+
     // TODO parse at compile time
-    fn parse_testcase(testcase: &str) -> (RegisterDump, Option<String>) {
+    fn parse_testcase(testcase: &str) -> RegisterDump {
         fn parse_u64(s: &str) -> Result<u64, ParseIntError> {
             if let Some(s) = s.strip_prefix("0x") {
                 u64::from_str_radix(s, 16)
@@ -320,15 +395,12 @@ mod test {
             .clone()
             .filter_map(|(line_n, c)| c.split_once('=').map(|(k, v)| (line_n, k.trim(), v.trim())));
 
-        let meta = comments
-            .filter_map(|(line_n, c)| c.split_once(':').map(|(k, v)| (line_n, k.trim(), v.trim())));
-
-        let mut expected = RegisterDump::uninitialized();
+        let mut expected_regs = RegisterDump::uninitialized();
 
         for (line, k, v) in definitions {
             match k.strip_prefix('x') {
                 Some(reg) => {
-                    expected.registers[usize::from_str(reg)
+                    expected_regs.registers[usize::from_str(reg)
                         .unwrap_or_else(|_| panic!("Could not parse key {k} in line {line}"))] =
                         Some(parse_u64(v).unwrap_or_else(|e| {
                             panic!("Could not parse value {v} in line {line}: {e}")
@@ -336,7 +408,7 @@ mod test {
                 }
                 None => match k {
                     "pc" => {
-                        expected.pc = Some(parse_u64(v).unwrap_or_else(|e| {
+                        expected_regs.pc = Some(parse_u64(v).unwrap_or_else(|e| {
                             panic!("Could not parse value {v} in line {line}: {e}")
                         }));
                     }
@@ -347,38 +419,45 @@ mod test {
             }
         }
 
-        let mut comment = None;
-        for (_line, k, v) in meta {
-            if k == "comment" {
-                comment = Some(v.to_string());
-            }
-        }
-
-        (expected, comment)
+        expected_regs
     }
 
     /// test runner for instruction tests
     fn execute_insn_test(name: &str, testcase: &str, binary: &[u8]) {
-        let (expected, comment) = parse_testcase(testcase);
-        let comment = comment.map_or(String::new(), |c| format!(" [{c}]"));
-
-        let mut cpu = CpuRV64I::new(Bus::new(Dram::new(binary)));
+        let mut cpu = CpuRV64I::new(Bus::new(Dram::with_code(binary)));
 
         loop {
-            // were currently just waiting for the cpu tu run into empty memory
+            // were currently just waiting for the cpu to run into empty memory
             if cpu.cycle().is_err() {
                 break;
             }
         }
 
-        let mut actual = cpu.dump_registers();
+        let mut actual_regs = cpu.dump_registers();
 
-        actual.apply_mask(&expected);
+        let expected_regs = parse_testcase(testcase);
 
-        assert_eq!(
-            actual, expected,
-            "Actual Register values are not matching expected values defined in {name}!{comment}",
-        );
+        actual_regs.apply_mask(&expected_regs);
+
+        if actual_regs != expected_regs {
+            let data = cpu.bus.get_mem().get_data();
+
+            fs::write(
+                format!(
+                    "memdump_dram_test_{name}_{}.dump",
+                    SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .expect("Could not calculate current timestamp!")
+                        .as_secs()
+                ),
+                data,
+            )
+            .expect("Could not write memory dump!");
+            assert_eq!(
+                actual_regs, expected_regs,
+                "Actual Register values are not matching expected values defined in {name}.S!",
+            );
+        }
     }
     // include tests generated via build.rs
     include!(concat!(env!("OUT_DIR"), "/tests_insn.rs"));

@@ -25,4 +25,9 @@ impl Bus {
         }
         Err(CPUError::AddressNotMapped(addr))
     }
+
+    #[cfg(test)]
+    pub fn get_mem(&self) -> &Dram {
+        &self.dram
+    }
 }
