@@ -8,27 +8,31 @@ use crate::dram::DRAM_SIZE;
 #[cfg(test)]
 mod test;
 
-pub struct CpuRV64I {
+pub struct CpuRV32I {
     registers: [u64; 32],
     pc: u64,
     bus: Bus,
 }
 
-impl CpuRV64I {
+impl CpuRV32I {
     pub fn new(bus: Bus) -> Self {
-        let mut cpu = CpuRV64I {
+        let mut cpu = Self {
             registers: [0; 32],
-            pc: DRAM_BASE,
+            pc: DRAM_BASE as u64,
             bus,
         };
 
-        cpu.registers[2] = DRAM_BASE + DRAM_SIZE;
+        cpu.registers[2] = (DRAM_BASE + DRAM_SIZE) as u64;
 
         cpu
     }
 
     pub fn dump_registers(&self) -> RegisterDump {
         RegisterDump::new(self.pc, &self.registers)
+    }
+
+    pub fn dump_memory(&self) -> &Vec<u8> {
+        self.bus.get_mem().get_data()
     }
 
     pub fn cycle(&mut self) -> Result<(), CPUError> {
@@ -46,17 +50,17 @@ impl CpuRV64I {
     }
 }
 
-impl CpuRV64I {
+impl CpuRV32I {
     fn fetch(&self) -> Result<u64, CPUError> {
-        self.bus.load(self.pc, 32)
+        self.bus.load(self.pc as u32, 32)
     }
 
     fn execute(&mut self, instruction: u32) -> Result<(), CPUError> {
-        let rd = ((instruction >> 7) & 0x1f) as usize;
-        let rs1 = ((instruction >> 15) & 0x1f) as usize;
-        let rs2 = ((instruction >> 20) & 0x1f) as usize;
+        let rd = ((instruction >> 7) & 0x1F) as usize;
+        let rs1 = ((instruction >> 15) & 0x1F) as usize;
+        let rs2 = ((instruction >> 20) & 0x1F) as usize;
 
-        let opcode = instruction & 0x7f; // opcode [6:0]
+        let opcode = instruction & 0x7F; // opcode [6:0]
 
         let funct3 = ((instruction >> 12) & 0x7) as usize; // [14:12]
         let funct7 = ((instruction >> 25) & 0x7F) as usize; // [31:25]
@@ -68,41 +72,41 @@ impl CpuRV64I {
         match opcode {
             // LUI
             0b011_0111 => {
-                let imm = (instruction & 0xFFFFF000) as u64; // TODO sign extend for 64bit?
+                let imm = (instruction & 0xFFFF_F000) as u64; // TODO sign extend for 64bit?
                 self.registers[rd] = imm;
             }
             // AUIPC
             0b001_0111 => {
-                let imm = (instruction & 0xFFFFF000) as u64; // TODO sign extend for 64bit?
+                let imm = (instruction & 0xFFFF_F000) as u64; // TODO sign extend for 64bit?
                 self.registers[rd] = self.pc + imm - 4;
             }
             // JAL
             0b110_1111 => {
                 // [31][19:12][20][30:21]0  ins
                 //  20  19 12  11  10  1    target
-                let imm = ((instruction & 0x80000000) as i32 >> 11) as u64
-                    | (instruction & 0xFF000) as u64
-                    | (instruction & 0x100000) as u64 >> 9
-                    | (instruction & 0x7FE00000) as u64 >> 20;
+                let imm = ((instruction & 0x8000_0000) as i32 >> 11) as i64 as u64 // [31] -> [20]
+                    | (instruction & 0xF_F000) as u64 // [12:19] -> [12:19]
+                    | (instruction & 0x10_0000) as u64 >> 9
+                    | (instruction & 0x7FE0_0000) as u64 >> 20;
 
                 self.registers[rd] = self.pc;
-                self.pc = (self.pc - 4).overflowing_add(dbg!(imm)).0;
+                self.pc = (self.pc - 4).overflowing_add(imm).0;
             }
             // JALR
             0b110_0111 if funct3 == 0b000 => {
-                let imm = i64::from((instruction & 0xfff_00000) as i32 >> 20) as u64; // sign extended immediate [31:20]
+                let imm = ((instruction & 0xFFF0_0000) as i32 >> 20) as i64 as u64; // sign extended immediate [31:20]
 
                 self.registers[rd] = self.pc;
-                self.pc = self.registers[rs1].overflowing_add(imm).0 & 0xFFFFFFFFFFFFFFFE;
+                self.pc = self.registers[rs1].overflowing_add(imm).0 & 0xFFFF_FFFF_FFFF_FFFE;
             }
             // BRANCH
             0b110_0011 => {
                 // [31][7][30:25][11:8]0  ins
                 //  12  11 10  5  4  1    target
-                let imm = ((instruction & 80000000) as i32 >> 19) as u64
-                    | ((instruction & 0x80) as u64) << 4
-                    | (instruction & 0x7E000000) as u64 >> 20
-                    | (instruction & 0xF00) as u64 >> 7;
+                let imm = ((instruction & 0x8000_0000) as i32 >> 19) as i64 as u64
+                    |  ((instruction & 0x80) as u64) << 4
+                    |  (instruction & 0x7E00_0000) as u64 >> 20
+                    |  (instruction & 0xF00) as u64 >> 7;
 
                 let funct3 = ((instruction >> 12) & 0x7) as usize; // [14:12]
                 match funct3 {
@@ -147,42 +151,42 @@ impl CpuRV64I {
             }
             // LOAD
             0b000_0011 => {
-                let imm = i64::from((instruction & 0xfff_00000) as i32 >> 20) as u64; // sign extended immediate [31:20]
+                let imm = ((instruction & 0xFFF0_0000) as i32 >> 20) as i64 as u64; // sign extended immediate [31:20]
                 let address = self.registers[rs1].overflowing_add(imm).0;
 
                 self.registers[rd] = match funct3 {
                     // LB
-                    0b000 => ((self.bus.load(address, 8)? as u8) as i8) as u64,
+                    0b000 => self.bus.load(address as u32, 8)? as u8 as i8 as i64 as u64,
                     // LH
-                    0b001 => ((self.bus.load(address, 16)? as u16) as i16) as u64,
+                    0b001 => self.bus.load(address as u32, 16)? as u16 as i16 as i64 as u64,
                     // LW
-                    0b010 => ((self.bus.load(dbg!(address), 32)? as u32) as i32) as u64,
+                    0b010 => self.bus.load(address as u32, 32)? as u32 as i32 as i64 as u64,
                     // LBU
-                    0b100 => self.bus.load(address, 8)?,
+                    0b100 => self.bus.load(address as u32, 8)?,
                     // LHU
-                    0b101 => self.bus.load(address, 16)?,
+                    0b101 => self.bus.load(address as u32, 16)?,
                     _ => return Err(InstructionNotImplemented(instruction)),
                 }
             }
             // STORE
             0b010_0011 => {
-                let imm = i64::from((instruction & 0xFE00_0000) as i32 >> 20) as u64
+                let imm = ((instruction & 0xFE00_0000) as i32 >> 20) as i64 as u64
                     | (instruction & 0xF80) as u64 >> 7; // sign extended immediate [31:25][11:7]
-                let address = dbg!(self.registers[rs1]).overflowing_add(dbg!(imm)).0;
+                let address = self.registers[rs1].overflowing_add(imm).0;
 
                 match funct3 {
                     // SB
-                    0b000 => self.bus.store(address, 8, self.registers[rs2])?,
+                    0b000 => self.bus.store(address as u32, 8, self.registers[rs2])?,
                     // SH
-                    0b001 => self.bus.store(address, 16, self.registers[rs2])?,
+                    0b001 => self.bus.store(address as u32, 16, self.registers[rs2])?,
                     // SW
-                    0b010 => self.bus.store(address, 32, self.registers[rs2])?,
+                    0b010 => self.bus.store(address as u32, 32, self.registers[rs2])?,
                     _ => return Err(InstructionNotImplemented(instruction)),
                 }
             }
             // OP-IMM
             0b001_0011 => {
-                let imm = i64::from((instruction & 0xfff_00000) as i32 >> 20) as u64; // sign extended immediate [31:20]
+                let imm = ((instruction & 0xFFF0_0000) as i32 >> 20) as i64 as u64; // sign extended immediate [31:20]
 
                 self.registers[rd] = match (funct7, funct3) {
                     // ADDI
@@ -214,7 +218,7 @@ impl CpuRV64I {
                     // SUB
                     (0b010_0000, 0b000) => self.registers[rs1].wrapping_sub(self.registers[rs2]),
                     // SLL (logical left shift)
-                    (0b000_0000, 0b001) => self.registers[rs1].shl(self.registers[rs2] & 0b11111),
+                    (0b000_0000, 0b001) => self.registers[rs1].shl(self.registers[rs2] & 0b1_1111),
                     // SLT (rs1 < rs2 signed)
                     (0b000_0000, 0b010) => {
                         u64::from((self.registers[rs1] as i64).lt(&(self.registers[rs2] as i64)))
@@ -226,10 +230,10 @@ impl CpuRV64I {
                     // XOR
                     (0b000_0000, 0b100) => self.registers[rs1].bitxor(self.registers[rs2]),
                     // SRL (logical right shift)
-                    (0b000_0000, 0b101) => self.registers[rs1].shr(self.registers[rs2] & 0b11111),
+                    (0b000_0000, 0b101) => self.registers[rs1].shr(self.registers[rs2] & 0b1_1111),
                     // SRA (arithmetic right shift)
                     (0b010_0000, 0b101) => {
-                        (self.registers[rs1] as i64).shr(self.registers[rs2] & 0b11111) as u64
+                        (self.registers[rs1] as i64).shr(self.registers[rs2] & 0b1_1111) as u64
                     }
                     // OR
                     (0b000_0000, 0b110) => self.registers[rs1].bitor(self.registers[rs2]),
@@ -245,9 +249,9 @@ impl CpuRV64I {
                 let bits_31_20 = ((instruction >> 20) & 0xFFF) as usize;
                 match (bits_31_20, rs1, funct3, rd) {
                     // ECALL
-                    (0b0000_0000_0000, 0b00000, 0b000, 0b00000) => todo!("ECALL (RV32I"),
+                    (0b0000_0000_0000, 0b0_0000, 0b000, 0b0_0000) => todo!("ECALL (RV32I"),
                     // EBREAK
-                    (0b0000_0000_0001, 0b00000, 0b000, 0b00000) => todo!("EBREAK (RV32I"),
+                    (0b0000_0000_0001, 0b0_0000, 0b000, 0b0_0000) => todo!("EBREAK (RV32I"),
                     _ => return Err(InstructionNotImplemented(instruction)),
                 }
             }

@@ -19,7 +19,7 @@ mod instructions {
     use std::time::SystemTime;
 
     use crate::bus::Bus;
-    use crate::cpu::{CpuRV64I, RegisterDump};
+    use crate::cpu::{CpuRV32I, RegisterDump};
     use crate::dram::Dram;
 
     // TODO parse at compile time
@@ -76,7 +76,7 @@ mod instructions {
 
     /// test runner for instruction tests
     fn execute_insn_test(name: &str, testcase: &str, binary: &[u8]) {
-        let mut cpu = CpuRV64I::new(Bus::new(Dram::with_code(binary)));
+        let mut cpu = CpuRV32I::new(Bus::new(Dram::with_code(binary)));
 
         loop {
             // were currently just waiting for the cpu to run into empty memory
