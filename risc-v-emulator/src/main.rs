@@ -3,13 +3,9 @@ use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 
-use crate::bus::Bus;
-use crate::cpu::CpuRV64I;
-use crate::dram::Dram;
-
-mod bus;
-mod cpu;
-mod dram;
+use risc_v_emulator_lib::bus::Bus;
+use risc_v_emulator_lib::cpu::CpuRV64I;
+use risc_v_emulator_lib::dram::Dram;
 
 fn main() -> Result<(), Box<dyn Error>> {
     env::set_var("RUST_BACKTRACE", "1");

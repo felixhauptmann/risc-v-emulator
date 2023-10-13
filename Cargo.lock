@@ -5,3 +5,10 @@ version = 3
 [[package]]
 name = "risc-v-emulator"
 version = "0.1.0"
+dependencies = [
+ "risc-v-emulator-lib",
+]
+
+[[package]]
+name = "risc-v-emulator-lib"
+version = "0.1.0"
