@@ -5,7 +5,7 @@ test_sources := $(wildcard *.c)
 tests := $(test_sources:.c=.bin)
 
 %.elf: %.c
-	riscv64-unknown-elf-gcc -O3 -fno-builtin -march=rv32ifd -mabi=ilp32 -Wl,-Ttext=0x80000000 -nostdlib -o $@ $^
+	riscv64-unknown-elf-gcc -Os -fno-builtin -march=rv32ifd -mabi=ilp32 -Wl,-Ttext=0x80000000 -nostdlib -o $@ $^
 
 %.bin: %.elf
 	riscv64-unknown-elf-objcopy -O binary $^ $@

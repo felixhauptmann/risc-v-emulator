@@ -1,10 +1,9 @@
-int fib(unsigned int n, unsigned int* mem);
+unsigned long long fib(unsigned long long n, unsigned long long* mem);
 
-static const int N = 48; // fib(48) is the largest number fitting inside u32
+static const int N = 94; // fib(94) is the largest number fitting inside u64
 
 int main() {
-
-    unsigned int res[N];
+    unsigned long long res[N];
     for (int i = 0; i < N; i++) {
         res[i] = -1;
     }
@@ -16,7 +15,7 @@ int main() {
     return res[N - 1];
 }
 
-int fib(unsigned int n, unsigned int* mem) {
+unsigned long long fib(unsigned long long n, unsigned long long* mem) {
     if (mem[n] != -1)
         return mem[n];
 

@@ -10,8 +10,8 @@ fn gen_insn_tests(out_dir: &str) {
     let destination = std::path::Path::new(&out_dir).join("tests_insn.rs");
     let mut f = std::fs::File::create(&destination).unwrap();
 
-    let tests = std::fs::read_dir("tests/instructions")
-        .expect("Could not list files in tests/instructions")
+    let tests = std::fs::read_dir("../binaries/instruction_tests")
+        .expect("Could not list files in ../binaries/instruction_tests")
         .filter_map(|r| {
             r.ok()
                 .filter(|f| f.path().is_file() && f.path().extension().is_some_and(|e| e == "S"))
