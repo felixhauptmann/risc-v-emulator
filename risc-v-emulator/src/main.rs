@@ -35,9 +35,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let elapsed = t_start.elapsed().as_nanos();
     let ns_per_cycle = elapsed / cycles;
-    let freq = (1. / ns_per_cycle as f32);
+    let freq = 1. / ns_per_cycle as f32;
 
-    println!("Cycles: {cycles} | Elapsed: {} | t/cycle: {} | {} GHz", human_time(elapsed),  human_time(ns_per_cycle), freq);
+    println!(
+        "Cycles: {cycles} | Elapsed: {} | t/cycle: {} | {} GHz",
+        human_time(elapsed),
+        human_time(ns_per_cycle),
+        freq
+    );
     println!("Writing memory dump...");
 
     fs::write("mem.dump", cpu.dump_memory()).expect("Could not write memory dump!");

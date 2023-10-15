@@ -48,6 +48,10 @@ impl CpuRV32I {
 
         Ok(())
     }
+
+    pub fn reset(&mut self) {
+        self.registers[2] = (DRAM_BASE + DRAM_SIZE) as u64
+    }
 }
 
 impl CpuRV32I {
