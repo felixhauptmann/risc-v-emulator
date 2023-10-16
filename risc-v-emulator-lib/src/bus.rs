@@ -1,7 +1,8 @@
 use crate::cpu::CPUError;
 use crate::dram::{Dram, DRAM_SIZE};
+use num_traits::{FromBytes, ToBytes};
 
-pub const DRAM_BASE: u32 = 0x8000_0000;
+pub const DRAM_BASE: usize = 0x8000_0000;
 
 pub struct Bus {
     dram: Dram,
@@ -9,19 +10,25 @@ pub struct Bus {
 
 impl Bus {
     pub fn new(dram: Dram) -> Self {
+        assert!((DRAM_BASE + DRAM_SIZE) < u32::MAX as usize);
         Self { dram }
     }
+}
 
-    pub fn load(&self, addr: u32, size: u64) -> Result<u64, CPUError> {
+impl Bus {
+    pub(crate) fn load<T: FromBytes>(&self, addr: usize) -> Result<T, CPUError>
+    where
+        for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
+    {
         if (DRAM_BASE..DRAM_BASE + DRAM_SIZE).contains(&addr) {
-            return self.dram.load(addr - DRAM_BASE, size);
+            return Ok(self.dram.load::<T>(addr - DRAM_BASE));
         }
         Err(CPUError::AddressNotMapped(addr as u64))
     }
 
-    pub fn store(&mut self, addr: u32, size: u64, value: u64) -> Result<(), CPUError> {
+    pub(crate) fn store<T: ToBytes>(&mut self, addr: usize, value: T) -> Result<(), CPUError> {
         if (DRAM_BASE..DRAM_BASE + DRAM_SIZE).contains(&addr) {
-            return self.dram.store(addr - DRAM_BASE, size, value);
+            return Ok(self.dram.store::<T>(addr - DRAM_BASE, value));
         }
         Err(CPUError::AddressNotMapped(addr as u64))
     }

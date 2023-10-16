@@ -398,6 +398,7 @@ name = "risc-v-emulator-lib"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "num-traits",
 ]
 
 [[package]]

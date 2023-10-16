@@ -1,98 +1,42 @@
-use crate::cpu::CPUError;
+use num_traits::{FromBytes, ToBytes};
+use std::mem;
 
-pub const DRAM_SIZE: u32 = 1024 * 1024 * 128;
+pub const DRAM_SIZE: usize = 1024 * 1024 * 128;
 
 pub struct Dram {
     dram: Vec<u8>,
 }
 
 impl Dram {
-    pub(crate) fn get_data(&self) -> &Vec<u8> {
-        &self.dram
-    }
-}
-
-impl Dram {
     pub fn with_code(code: &[u8]) -> Dram {
         // write code at start of new dram
-        let mut dram = vec![0; DRAM_SIZE as usize];
+        let mut dram = vec![0; DRAM_SIZE];
         dram.splice(..code.len(), code.iter().copied());
 
         Self { dram }
     }
-
-    pub fn load(&self, addr: u32, size: u64) -> Result<u64, CPUError> {
-        match size {
-            8 => Ok(self.load8(addr)),
-            16 => Ok(self.load16(addr)),
-            32 => Ok(self.load32(addr)),
-            64 => Ok(self.load64(addr)),
-            _ => Err(CPUError::InvalidAccessSize(size)),
-        }
-    }
-
-    pub fn store(&mut self, addr: u32, size: u64, value: u64) -> Result<(), CPUError> {
-        match size {
-            8 => Ok(self.store8(addr, value)),
-            16 => Ok(self.store16(addr, value)),
-            32 => Ok(self.store32(addr, value)),
-            64 => Ok(self.store64(addr, value)),
-            _ => Err(CPUError::InvalidAccessSize(size)),
-        }
-    }
 }
 
 impl Dram {
-    fn load8(&self, addr: u32) -> u64 {
-        let index = addr as usize;
-        u64::from(self.dram[index])
+    pub(crate) fn load<T: FromBytes>(&self, addr: usize) -> T
+    where
+        for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
+    {
+        let bytes = self.dram[addr..addr + mem::size_of::<T>()].as_ref();
+
+        if let Ok(bytes) = &bytes.try_into() {
+            T::from_le_bytes(bytes)
+        } else {
+            panic!("Error in {}", line!())
+        }
     }
 
-    fn load16(&self, addr: u32) -> u64 {
-        u64::from(u16::from_le_bytes(
-            self.dram[addr as usize..addr as usize + 2]
-                .try_into()
-                .unwrap(),
-        ))
+    pub(crate) fn store<T: ToBytes>(&mut self, addr: usize, value: T) {
+        let bytes = value.to_le_bytes().as_ref().to_owned();
+        self.dram.splice(addr..addr + bytes.len(), bytes);
     }
 
-    fn load32(&self, addr: u32) -> u64 {
-        u64::from(u32::from_le_bytes(
-            self.dram[addr as usize..addr as usize + 4]
-                .try_into()
-                .unwrap(),
-        )
-        )
-    }
-
-    fn load64(&self, addr: u32) -> u64 {
-        u64::from_le_bytes(
-            self.dram[addr as usize..addr as usize + 8]
-                .try_into()
-                .unwrap(),
-        )
-    }
-
-    fn store8(&mut self, addr: u32, value: u64) {
-        self.dram[addr as usize] = value as u8;
-    }
-
-    fn store16(&mut self, addr: u32, value: u64) {
-        self.dram.splice(
-            addr as usize..addr as usize + 2,
-            (value as u16).to_le_bytes(),
-        );
-    }
-
-    fn store32(&mut self, addr: u32, value: u64) {
-        self.dram.splice(
-            addr as usize..addr as usize + 4,
-            (value as u32).to_le_bytes(),
-        );
-    }
-
-    fn store64(&mut self, addr: u32, value: u64) {
-        self.dram
-            .splice(addr as usize..addr as usize + 8, value.to_le_bytes());
+    pub(crate) fn get_data(&self) -> &Vec<u8> {
+        &self.dram
     }
 }

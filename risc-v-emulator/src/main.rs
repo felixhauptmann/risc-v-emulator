@@ -5,7 +5,8 @@ use std::time::Instant;
 use std::{env, fs};
 
 use risc_v_emulator_lib::bus::Bus;
-use risc_v_emulator_lib::cpu::CpuRV32I;
+use risc_v_emulator_lib::cpu::isa::RV32I;
+use risc_v_emulator_lib::cpu::Cpu;
 use risc_v_emulator_lib::dram::Dram;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -19,7 +20,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut code = Vec::new();
     file.read_to_end(&mut code)?;
 
-    let mut cpu = CpuRV32I::new(Bus::new(Dram::with_code(&code)));
+    let mut cpu: Cpu<RV32I, 32> = Cpu::new(Bus::new(Dram::with_code(&code)));
 
     let mut cycles = 0;
     let t_start = Instant::now();

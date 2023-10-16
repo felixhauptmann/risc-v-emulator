@@ -13,28 +13,36 @@ fn test_unsigned_signed_add() {
 }
 
 mod instructions {
+    use num_traits::Num;
     use std::fs;
-    use std::num::ParseIntError;
     use std::str::FromStr;
     use std::time::SystemTime;
 
     use crate::bus::Bus;
-    use crate::cpu::{CpuRV32I, RegisterDump};
+    use crate::cpu::isa::{As, Isa, RV32I};
+    use crate::cpu::{Cpu, RegisterDump};
     use crate::dram::Dram;
 
     // TODO parse at compile time
-    fn parse_testcase(testcase: &str) -> RegisterDump {
-        fn parse_u64(s: &str) -> Result<u64, ParseIntError> {
+    fn parse_testcase<const REG_COUNT: usize, I: Isa<REG_COUNT>>(
+        testcase: &str,
+    ) -> RegisterDump<I, REG_COUNT>
+    where
+        <I::XlenU as Num>::FromStrRadixErr: std::fmt::Display,
+    {
+        fn parse_u64<const REG_COUNT: usize, I: Isa<REG_COUNT>>(
+            s: &str,
+        ) -> Result<I::XlenU, <I::XlenU as Num>::FromStrRadixErr> {
             if let Some(s) = s.strip_prefix("0x") {
-                u64::from_str_radix(s, 16)
+                I::XlenU::from_str_radix(s, 16)
             } else if let Some(s) = s.strip_prefix("0o") {
-                u64::from_str_radix(s, 8)
+                I::XlenU::from_str_radix(s, 8)
             } else if let Some(s) = s.strip_prefix("0b") {
-                u64::from_str_radix(s, 2)
+                I::XlenU::from_str_radix(s, 2)
             } else if let Some(s) = s.strip_prefix('-') {
-                u64::from_str(s).map(|v| -i128::from(v) as u64)
+                I::XlenU::from_str_radix(s, 10).map(|v| (-v.as_t::<I::XlenI>()).as_t::<I::XlenU>())
             } else {
-                u64::from_str(s)
+                I::XlenU::from_str_radix(s, 10)
             }
         }
 
@@ -54,13 +62,14 @@ mod instructions {
                 Some(reg) => {
                     expected_regs.registers[usize::from_str(reg)
                         .unwrap_or_else(|_| panic!("Could not parse key {k} in line {line}"))] =
-                        Some(parse_u64(v).unwrap_or_else(|e| {
-                            panic!("Could not parse value {v} in line {line}: {e}")
-                        }));
+                        // Some(parse_u64(v).unwrap_or_else(|e| {
+                        //     panic!("Could not parse value {v} in line {line}: {e}")
+                        // }));
+                    None
                 }
                 None => match k {
                     "pc" => {
-                        expected_regs.pc = Some(parse_u64(v).unwrap_or_else(|e| {
+                        expected_regs.pc = Some(parse_u64::<REG_COUNT, I>(v).unwrap_or_else(|e| {
                             panic!("Could not parse value {v} in line {line}: {e}")
                         }));
                     }
@@ -76,7 +85,8 @@ mod instructions {
 
     /// test runner for instruction tests
     fn execute_insn_test(name: &str, testcase: &str, binary: &[u8]) {
-        let mut cpu = CpuRV32I::new(Bus::new(Dram::with_code(binary)));
+        // let mut cpu = CpuRV32I::new(Bus::new(Dram::with_code(binary)));
+        let mut cpu: Cpu<RV32I, 32> = Cpu::new(Bus::new(Dram::with_code(binary)));
 
         loop {
             // were currently just waiting for the cpu to run into empty memory
