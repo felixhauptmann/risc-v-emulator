@@ -4,7 +4,7 @@ use crate::cpu::isa::rv32i::RV32I;
 use crate::cpu::isa::Isa;
 use crate::cpu::{CPUError, Cpu};
 
-pub struct RV32E;
+pub struct RV32E(());
 
 impl Isa<16> for RV32E {
     type XlenU = u32;
@@ -12,7 +12,6 @@ impl Isa<16> for RV32E {
 
     const ISA_ID: &'static str = "RV32E";
     const INSN_SIZE: Self::XlenU = 4;
-    const REG_COUNT: usize = 16;
 
     fn exec<const REG_COUNT: usize, I: Isa<REG_COUNT>>(
         cpu: &mut Cpu<I, REG_COUNT>,

@@ -50,7 +50,6 @@ pub trait Isa<const REG_COUNT: usize> {
     const ISA_ID: &'static str;
 
     const INSN_SIZE: Self::XlenU;
-    const REG_COUNT: usize;
 
     fn exec<const REG_COUNT_I: usize, I: Isa<REG_COUNT_I>>(
         cpu: &mut Cpu<I, REG_COUNT_I>,

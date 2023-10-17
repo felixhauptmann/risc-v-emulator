@@ -4,8 +4,7 @@ use num_traits::Unsigned;
 
 use crate::cpu::isa::Xlen;
 use crate::cpu::CPUError;
-use crate::impl_memory_map;
-use crate::memory::Memory;
+use crate::memory::{impl_memory_map, Memory};
 
 pub struct Bus<A: Xlen + Unsigned> {
     mem_map: Vec<(Range<A>, Box<dyn Memory<A>>)>,

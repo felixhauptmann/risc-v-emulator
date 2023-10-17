@@ -5,8 +5,7 @@ use num_traits::{FromBytes, ToBytes, Unsigned};
 
 use crate::cpu::isa::{As, Xlen};
 use crate::cpu::CPUError;
-use crate::impl_memory;
-use crate::memory::Memory;
+use crate::memory::{impl_memory, Memory};
 
 pub struct Dram<A: Xlen + Unsigned> {
     dram: Vec<u8>,

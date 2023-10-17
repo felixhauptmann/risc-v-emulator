@@ -9,7 +9,7 @@ use crate::cpu::{CPUError, Cpu};
 use crate::memory::Memory;
 
 #[derive(PartialEq)]
-pub struct RV32I;
+pub struct RV32I(());
 
 impl Isa<32> for RV32I {
     type XlenU = u32;
@@ -17,7 +17,6 @@ impl Isa<32> for RV32I {
     const ISA_ID: &'static str = "RV32I";
 
     const INSN_SIZE: Self::XlenU = 4;
-    const REG_COUNT: usize = 32;
 
     fn exec<const REG_COUNT: usize, I: Isa<REG_COUNT>>(
         cpu: &mut Cpu<I, REG_COUNT>,
@@ -58,7 +57,7 @@ impl Isa<32> for RV32I {
                     I::ISA_ID,
                     I::XlenU::max_value().count_ones(),
                     I::INSN_SIZE.as_t::<usize>(),
-                    I::REG_COUNT
+                    REG_COUNT
                 )
             }
             // LUI

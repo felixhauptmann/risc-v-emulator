@@ -38,7 +38,6 @@ pub trait Memory<A> {
     fn get_data(&self, range: Range<A>) -> Result<Vec<u8>, CPUError<A>>;
 }
 
-#[macro_export]
 macro_rules! impl_memory {
     ($self:ident, $addr:ident, $value:ident, $load:block, $store:block) => {
         fn load_u8(&$self, $addr: A) -> Result<u8, CPUError<A>> $load
@@ -67,7 +66,8 @@ macro_rules! impl_memory {
     };
 }
 
-#[macro_export]
+pub(crate) use impl_memory;
+
 macro_rules! impl_memory_map {
     ($self:ident, $addr:ident, $map:block, $map_mut:block) => {
         fn load_u8(&$self, $addr: A) -> Result<u8, CPUError<A>> { let (mem, mapping) = $map; mem.load_u8($addr - mapping.start) }
@@ -95,3 +95,5 @@ macro_rules! impl_memory_map {
         fn store_i128(&mut $self, $addr: A, value: i128) -> Result<(), CPUError<A>> {let (mem, mapping) = $map_mut; mem.store_i128($addr - mapping.start, value)}
     };
 }
+
+pub(crate) use impl_memory_map;
