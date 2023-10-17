@@ -1,31 +1,31 @@
 use std::fmt::{Debug, Display, Formatter};
+use std::ops::Range;
 
 use num_traits::{AsPrimitive, Zero};
 
-use crate::bus::{Bus, DRAM_BASE};
-use crate::cpu::isa::{As, Isa};
-use crate::dram::DRAM_SIZE;
+use crate::cpu::isa::{As, Isa, Xlen};
+use crate::memory::{Bus, Dram, Memory};
 
 pub mod isa;
 #[cfg(test)]
 mod test;
 
 #[derive(Debug)]
-pub enum CPUError {
+pub enum CPUError<A> {
     // TODO handle these errors the way they are supposed to be handled according to RISC-V Spec
     InstructionNotImplemented(u32),
-    AddressNotMapped(u64),
+    AddressNotMapped(A),
     InvalidAccessSize(u64),
 }
 
-impl Display for CPUError {
+impl<A: Xlen> Display for CPUError<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             CPUError::InstructionNotImplemented(opcode) => {
                 write!(f, "Opcode {opcode:#010x} is not implemented!")
             }
             CPUError::AddressNotMapped(address) => {
-                write!(f, "Nothing is mapped to address {address:#018x}!")
+                write!(f, "Nothing is mapped to address {address:#018X}!")
             }
             CPUError::InvalidAccessSize(size) => {
                 write!(f, "Can not read {size} bits!")
@@ -102,8 +102,9 @@ impl<I: Isa<REG_COUNT>, const REG_COUNT: usize> Debug for RegisterDump<I, REG_CO
 
 pub struct Cpu<I: Isa<REG_COUNT>, const REG_COUNT: usize> {
     pub(crate) pc: I::XlenU,
-    pub(crate) bus: Bus,
+    pub(crate) bus: Bus<I::XlenU>,
     pub(crate) registers: [I::XlenU; REG_COUNT],
+    dram_mapping: Range<I::XlenU>,
 }
 
 impl<I: Isa<REG_COUNT>, const REG_COUNT: usize> Cpu<I, REG_COUNT> {
@@ -115,37 +116,47 @@ impl<I: Isa<REG_COUNT>, const REG_COUNT: usize> Cpu<I, REG_COUNT> {
 impl<I: Isa<REG_COUNT>, const REG_COUNT: usize> Cpu<I, REG_COUNT>
 where
     bool: AsPrimitive<I::XlenU>,
-
     u8: AsPrimitive<I::XlenU>,
     i8: AsPrimitive<I::XlenU>,
     u16: AsPrimitive<I::XlenU>,
     u32: AsPrimitive<I::XlenU>,
-    i32: AsPrimitive<<I as Isa<REG_COUNT>>::XlenU>,
-
+    i32: AsPrimitive<I::XlenU>,
     i8: AsPrimitive<I::XlenI>,
     i16: AsPrimitive<I::XlenI>,
     u32: AsPrimitive<I::XlenI>,
     i32: AsPrimitive<I::XlenI>,
-
     I::XlenU: AsPrimitive<u8>,
     I::XlenU: AsPrimitive<u16>,
     I::XlenU: AsPrimitive<u32>,
-
     usize: AsPrimitive<I::XlenU>,
 {
-    pub fn new(bus: Bus) -> Cpu<I, REG_COUNT> {
+    pub fn new(bus: Bus<I::XlenU>, dram_mapping: Range<I::XlenU>) -> Cpu<I, REG_COUNT> {
         let mut cpu = Self {
-            pc: DRAM_BASE.as_t::<I::XlenU>(),
+            pc: I::XlenU::zero(),
             bus,
             registers: [I::XlenU::zero(); REG_COUNT],
+            dram_mapping,
         };
 
-        cpu.registers[2] = (DRAM_BASE + DRAM_SIZE).as_t::<I::XlenU>();
+        cpu.reset();
 
         cpu
     }
 
-    pub fn cycle(&mut self) -> Result<(), CPUError> {
+    pub fn with_code(code: &[u8]) -> Cpu<I, REG_COUNT> {
+        const DRAM_BASE: usize = 0x8000_0000;
+        const DRAM_SIZE: usize = 1024 * 1024 * 128;
+
+        Cpu::new(
+            Bus::new(vec![(
+                DRAM_BASE.as_t()..(DRAM_BASE + DRAM_SIZE).as_t(),
+                Box::new(Dram::with_code(code, DRAM_SIZE.as_t())),
+            )]),
+            DRAM_BASE.as_t()..(DRAM_BASE + DRAM_SIZE).as_t(),
+        )
+    }
+
+    pub fn cycle(&mut self) -> Result<(), CPUError<I::XlenU>> {
         // fetch
         let instruction = self.fetch()?;
 
@@ -157,22 +168,23 @@ where
     }
 
     pub fn reset(&mut self) {
-        self.pc = DRAM_BASE.as_t::<I::XlenU>()
+        self.pc = self.dram_mapping.start;
+        self.registers[2] = self.dram_mapping.end;
     }
 
     pub fn dump_registers(&self) -> RegisterDump<I, REG_COUNT> {
         RegisterDump::new(self.pc, &self.registers)
     }
 
-    pub fn dump_memory(&self) -> &Vec<u8> {
-        self.bus.get_mem().get_data()
+    pub fn dump_memory(&self) -> Vec<u8> {
+        self.bus.get_data(self.dram_mapping.clone()).unwrap()
     }
 
-    fn fetch(&self) -> Result<u32, CPUError> {
-        self.bus.load::<u32>(self.pc.as_t::<usize>())
+    fn fetch(&self) -> Result<u32, CPUError<I::XlenU>> {
+        self.bus.load_u32(self.pc)
     }
 
-    fn execute(&mut self, instruction: u32) -> Result<(), CPUError> {
+    fn execute(&mut self, instruction: u32) -> Result<(), CPUError<I::XlenU>> {
         I::exec(self, instruction)
     }
 }

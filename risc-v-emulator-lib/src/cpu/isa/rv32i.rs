@@ -1,9 +1,12 @@
+use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr};
+
+use num_traits::ops::overflowing::OverflowingAdd;
+use num_traits::{AsPrimitive, Bounded, PrimInt, WrappingAdd, WrappingSub, Zero};
+
 use crate::cpu::isa::As;
 use crate::cpu::isa::Isa;
 use crate::cpu::{CPUError, Cpu};
-use num_traits::ops::overflowing::OverflowingAdd;
-use num_traits::{AsPrimitive, Bounded, PrimInt, WrappingAdd, WrappingSub, Zero};
-use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr};
+use crate::memory::Memory;
 
 #[derive(PartialEq)]
 pub struct RV32I;
@@ -19,7 +22,7 @@ impl Isa<32> for RV32I {
     fn exec<const REG_COUNT: usize, I: Isa<REG_COUNT>>(
         cpu: &mut Cpu<I, REG_COUNT>,
         instruction: u32,
-    ) -> Result<(), CPUError>
+    ) -> Result<(), CPUError<I::XlenU>>
     where
         bool: AsPrimitive<I::XlenU>,
         u8: AsPrimitive<I::XlenU>,
@@ -156,31 +159,25 @@ impl Isa<32> for RV32I {
                     // LB
                     0b000 => cpu
                         .bus
-                        .load::<i8>(address.as_t::<usize>())?
+                        .load_i8(address)?
                         .as_t::<I::XlenI>()
                         .as_t::<I::XlenU>(),
                     // LH
                     0b001 => cpu
                         .bus
-                        .load::<i16>(address.as_t::<usize>())?
+                        .load_i16(address)?
                         .as_t::<I::XlenI>()
                         .as_t::<I::XlenU>(),
                     // LW
                     0b010 => cpu
                         .bus
-                        .load::<i32>(address.as_t::<usize>())?
+                        .load_i32(address)?
                         .as_t::<I::XlenI>()
                         .as_t::<I::XlenU>(),
                     // LBU
-                    0b100 => cpu
-                        .bus
-                        .load::<u8>(address.as_t::<usize>())?
-                        .as_t::<I::XlenU>(),
+                    0b100 => cpu.bus.load_u8(address)?.as_t::<I::XlenU>(),
                     // LHU
-                    0b101 => cpu
-                        .bus
-                        .load::<u16>(address.as_t::<usize>())?
-                        .as_t::<I::XlenU>(),
+                    0b101 => cpu.bus.load_u16(address)?.as_t::<I::XlenU>(),
                     _ => return Err(CPUError::InstructionNotImplemented(instruction)),
                 }
             }
@@ -194,17 +191,15 @@ impl Isa<32> for RV32I {
 
                 match funct3 {
                     // SB
-                    0b000 => cpu
-                        .bus
-                        .store::<u8>(address.as_t::<usize>(), cpu.registers[rs2].as_t::<u8>())?,
+                    0b000 => cpu.bus.store_u8(address, cpu.registers[rs2].as_t::<u8>())?,
                     // SH
                     0b001 => cpu
                         .bus
-                        .store::<u16>(address.as_t::<usize>(), cpu.registers[rs2].as_t::<u16>())?,
+                        .store_u16(address, cpu.registers[rs2].as_t::<u16>())?,
                     // SW
                     0b010 => cpu
                         .bus
-                        .store::<u32>(address.as_t::<usize>(), cpu.registers[rs2].as_t::<u32>())?,
+                        .store_u32(address, cpu.registers[rs2].as_t::<u32>())?,
                     _ => return Err(CPUError::InstructionNotImplemented(instruction)),
                 }
             }

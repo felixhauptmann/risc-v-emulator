@@ -13,15 +13,14 @@ fn test_unsigned_signed_add() {
 }
 
 mod instructions {
-    use num_traits::Num;
     use std::fs;
     use std::str::FromStr;
     use std::time::SystemTime;
 
-    use crate::bus::Bus;
+    use num_traits::Num;
+
     use crate::cpu::isa::{As, Isa, RV32I};
     use crate::cpu::{Cpu, RegisterDump};
-    use crate::dram::Dram;
 
     // TODO parse at compile time
     fn parse_testcase<const REG_COUNT: usize, I: Isa<REG_COUNT>>(
@@ -65,7 +64,7 @@ mod instructions {
                         // Some(parse_u64(v).unwrap_or_else(|e| {
                         //     panic!("Could not parse value {v} in line {line}: {e}")
                         // }));
-                    None
+                        None
                 }
                 None => match k {
                     "pc" => {
@@ -85,8 +84,7 @@ mod instructions {
 
     /// test runner for instruction tests
     fn execute_insn_test(name: &str, testcase: &str, binary: &[u8]) {
-        // let mut cpu = CpuRV32I::new(Bus::new(Dram::with_code(binary)));
-        let mut cpu: Cpu<RV32I, 32> = Cpu::new(Bus::new(Dram::with_code(binary)));
+        let mut cpu: Cpu<RV32I, 32> = Cpu::with_code(binary);
 
         loop {
             // were currently just waiting for the cpu to run into empty memory
@@ -102,7 +100,7 @@ mod instructions {
         actual_regs.apply_mask(&expected_regs);
 
         if actual_regs != expected_regs {
-            let data = cpu.bus.get_mem().get_data();
+            let data: Vec<u8> = cpu.dump_memory();
 
             fs::write(
                 format!(

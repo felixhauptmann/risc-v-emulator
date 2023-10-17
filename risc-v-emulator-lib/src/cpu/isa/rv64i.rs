@@ -1,7 +1,8 @@
+use num_traits::AsPrimitive;
+
 use crate::cpu::isa::rv32i::RV32I;
 use crate::cpu::isa::Isa;
 use crate::cpu::{CPUError, Cpu};
-use num_traits::AsPrimitive;
 
 pub struct RV64I;
 
@@ -15,7 +16,7 @@ impl Isa<32> for RV64I {
     fn exec<const REG_COUNT: usize, I: Isa<REG_COUNT>>(
         cpu: &mut Cpu<I, REG_COUNT>,
         instruction: u32,
-    ) -> Result<(), CPUError>
+    ) -> Result<(), CPUError<I::XlenU>>
     where
         bool: AsPrimitive<I::XlenU>,
         u8: AsPrimitive<I::XlenU>,
@@ -31,6 +32,12 @@ impl Isa<32> for RV64I {
         I::XlenU: AsPrimitive<u16>,
         I::XlenU: AsPrimitive<u32>,
     {
-        RV32I::exec(cpu, instruction)
+        let res = RV32I::exec(cpu, instruction);
+
+        if let Err(CPUError::InstructionNotImplemented(_)) = res {
+            todo!("")
+        } else {
+            res
+        }
     }
 }
