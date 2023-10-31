@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Display, UpperHex};
+use std::ops::Range;
 
 use num_traits::ops::overflowing::OverflowingAdd;
 use num_traits::{AsPrimitive, NumAssign, PrimInt, Signed, Unsigned, WrappingAdd, WrappingSub};
@@ -7,7 +8,9 @@ pub use rv32e::RV32E;
 pub use rv32i::RV32I;
 pub use rv64i::RV64I;
 
-use crate::cpu::{CPUError, Cpu};
+use crate::cpu::isa::ext::float::FloatExt;
+use crate::cpu::{CPUError, RegisterDump};
+use crate::memory::Bus;
 
 mod rv32i;
 
@@ -15,8 +18,11 @@ mod rv32e;
 
 mod rv64i;
 
-pub trait Xlen:
+mod ext;
+
+pub trait XlenU:
     'static
+    + Unsigned
     + PrimInt
     + NumAssign
     + WrappingAdd
@@ -25,51 +31,118 @@ pub trait Xlen:
     + UpperHex
     + Display
     + Debug
+    + AsPrimitive<Self::Signed>
     + AsPrimitive<usize>
+where
+    Self::Signed: AsPrimitive<Self>,
 {
+    const LEN: usize;
+    type Signed: XlenI;
 }
 
-impl<T> Xlen for T where
-    T: 'static
-        + PrimInt
-        + NumAssign
-        + WrappingAdd
-        + WrappingSub
-        + OverflowingAdd
-        + UpperHex
-        + Display
-        + Debug
-        + AsPrimitive<usize>
-{
+impl XlenU for u128 {
+    const LEN: usize = 128;
+    type Signed = i128;
 }
 
-pub trait Isa<const REG_COUNT: usize> {
-    type XlenU: Xlen + Unsigned + AsPrimitive<Self::XlenI>;
-    type XlenI: Xlen + Signed + AsPrimitive<Self::XlenU>;
+impl XlenU for u64 {
+    const LEN: usize = 64;
+    type Signed = i64;
+}
 
+impl XlenU for u32 {
+    const LEN: usize = 32;
+    type Signed = i32;
+}
+
+pub trait XlenI:
+    'static
+    + Signed
+    + PrimInt
+    + NumAssign
+    + WrappingAdd
+    + WrappingSub
+    + OverflowingAdd
+    + UpperHex
+    + Display
+    + Debug
+    + AsPrimitive<Self::UnSigned>
+    + AsPrimitive<usize>
+where
+    Self::UnSigned: AsPrimitive<Self>,
+{
+    const LEN: usize;
+    type UnSigned: XlenU;
+}
+
+impl XlenI for i128 {
+    const LEN: usize = 128;
+    type UnSigned = u128;
+}
+
+impl XlenI for i64 {
+    const LEN: usize = 64;
+    type UnSigned = u64;
+}
+
+impl XlenI for i32 {
+    const LEN: usize = 32;
+    type UnSigned = u32;
+}
+
+pub trait Cpu<XLEN: XlenU, const REG_COUNT: usize> {
     const ISA_ID: &'static str;
 
-    const INSN_SIZE: Self::XlenU;
+    fn new(bus: Bus<XLEN>, dram_mapping: Range<XLEN>, float_ext: Option<FloatExt>) -> Self;
+    fn with_code(code: &[u8], float_ext: Option<FloatExt>) -> Self;
 
-    fn exec<const REG_COUNT_I: usize, I: Isa<REG_COUNT_I>>(
-        cpu: &mut Cpu<I, REG_COUNT_I>,
-        instruction: u32,
-    ) -> Result<(), CPUError<I::XlenU>>
-    where
-        bool: AsPrimitive<I::XlenU>,
-        u8: AsPrimitive<I::XlenU>,
-        i8: AsPrimitive<I::XlenU>,
-        u16: AsPrimitive<I::XlenU>,
-        u32: AsPrimitive<I::XlenU>,
-        i32: AsPrimitive<I::XlenU>,
-        i8: AsPrimitive<I::XlenI>,
-        i16: AsPrimitive<I::XlenI>,
-        u32: AsPrimitive<I::XlenI>,
-        i32: AsPrimitive<I::XlenI>,
-        I::XlenU: AsPrimitive<u8>,
-        I::XlenU: AsPrimitive<u16>,
-        I::XlenU: AsPrimitive<u32>;
+    fn isa_id(&self) -> &'static str {
+        Self::ISA_ID
+    }
+
+    fn cycle(&mut self) -> Result<(), CPUError<XLEN>>;
+
+    fn execute(&mut self, instruction: u32) -> Result<(), CPUError<XLEN>>;
+
+    fn fetch(&self) -> Result<u32, CPUError<XLEN>>;
+
+    fn reset(&mut self);
+
+    fn dump_registers(&self) -> RegisterDump<XLEN, REG_COUNT>;
+
+    fn dump_memory(&self) -> Vec<u8>;
 }
+
+// struct RegFile<XLEN: XlenU, const REG_COUNT: usize> {
+//     registers: [XLEN; REG_COUNT],
+// }
+//
+// impl<XLEN: XlenU, const REG_COUNT: usize> RegFile<XLEN, REG_COUNT> {
+//     fn get(&self, r: usize) -> XLEN {
+//         if r == 0 {
+//             XLEN::zero()
+//         } else {
+//             self.registers[r]
+//         }
+//     }
+//
+//     fn set(&mut self, r: usize, v: XLEN) {
+//         self.registers[r] = v;
+//     }
+//
+//     fn len(&self) -> usize {
+//         REG_COUNT
+//     }
+//
+// }
+//
+// impl<XLEN: XlenU, const REG_COUNT: usize> Default for RegFile<XLEN, REG_COUNT> {
+//     fn default() -> Self {
+//         Self {
+//             registers: [XLEN::zero(); REG_COUNT]
+//         }
+//     }
+// }
 
 pub(crate) trait As {
     fn as_t<T: Copy + 'static>(self) -> T

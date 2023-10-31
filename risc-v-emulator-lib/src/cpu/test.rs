@@ -19,29 +19,32 @@ mod instructions {
 
     use num_traits::Num;
 
-    use crate::cpu::isa::{As, Isa, RV32I};
-    use crate::cpu::{Cpu, RegisterDump};
+    use crate::cpu::isa::{As, Cpu, XlenU, RV32I};
+    use crate::cpu::RegisterDump;
 
     // TODO parse at compile time
-    fn parse_testcase<const REG_COUNT: usize, I: Isa<REG_COUNT>>(
+    fn parse_testcase<const REG_COUNT: usize, XLEN: XlenU>(
         testcase: &str,
-    ) -> RegisterDump<I, REG_COUNT>
+    ) -> RegisterDump<XLEN, REG_COUNT>
     where
-        <I::XlenU as Num>::FromStrRadixErr: std::fmt::Display,
+        <XLEN as Num>::FromStrRadixErr: std::fmt::Display,
     {
-        fn parse_u64<const REG_COUNT: usize, I: Isa<REG_COUNT>>(
+        fn parse_u64<const REG_COUNT: usize, XLEN: XlenU>(
             s: &str,
-        ) -> Result<I::XlenU, <I::XlenU as Num>::FromStrRadixErr> {
+        ) -> Result<XLEN, <XLEN as Num>::FromStrRadixErr> {
             if let Some(s) = s.strip_prefix("0x") {
-                I::XlenU::from_str_radix(s, 16)
+                XLEN::from_str_radix(s, 16)
             } else if let Some(s) = s.strip_prefix("0o") {
-                I::XlenU::from_str_radix(s, 8)
+                XLEN::from_str_radix(s, 8)
             } else if let Some(s) = s.strip_prefix("0b") {
-                I::XlenU::from_str_radix(s, 2)
+                XLEN::from_str_radix(s, 2)
             } else if let Some(s) = s.strip_prefix('-') {
-                I::XlenU::from_str_radix(s, 10).map(|v| (-v.as_t::<I::XlenI>()).as_t::<I::XlenU>())
+                XLEN::from_str_radix(s, 10).map(|v: XLEN| {
+                    let v: XLEN::Signed = -(v.as_t::<XLEN::Signed>());
+                    v.as_t::<XLEN>()
+                })
             } else {
-                I::XlenU::from_str_radix(s, 10)
+                XLEN::from_str_radix(s, 10)
             }
         }
 
@@ -68,9 +71,10 @@ mod instructions {
                 }
                 None => match k {
                     "pc" => {
-                        expected_regs.pc = Some(parse_u64::<REG_COUNT, I>(v).unwrap_or_else(|e| {
-                            panic!("Could not parse value {v} in line {line}: {e}")
-                        }));
+                        expected_regs.pc =
+                            Some(parse_u64::<REG_COUNT, XLEN>(v).unwrap_or_else(|e| {
+                                panic!("Could not parse value {v} in line {line}: {e}")
+                            }));
                     }
                     _ => {
                         panic!("Could not parse key {k} in line {line}")
@@ -84,7 +88,7 @@ mod instructions {
 
     /// test runner for instruction tests
     fn execute_insn_test(name: &str, testcase: &str, binary: &[u8]) {
-        let mut cpu: Cpu<RV32I, 32> = Cpu::with_code(binary);
+        let mut cpu: RV32I = RV32I::with_code(binary, None);
 
         loop {
             // were currently just waiting for the cpu to run into empty memory

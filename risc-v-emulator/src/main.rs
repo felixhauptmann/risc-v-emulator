@@ -5,30 +5,50 @@ use std::time::Instant;
 use std::{env, fs};
 
 use risc_v_emulator_lib::cpu::isa::RV32I;
-use risc_v_emulator_lib::cpu::Cpu;
+use risc_v_emulator_lib::cpu::isa::{Cpu, XlenU, RV32E, RV64I};
+use risc_v_emulator_lib::cpu::CPUError;
 
 fn main() -> Result<(), Box<dyn Error>> {
     env::set_var("RUST_BACKTRACE", "1");
 
     let args: Vec<String> = env::args().collect();
 
-    assert_eq!(args.len(), 2, "Usage: risc-v-emulator <filename>");
+    assert_eq!(args.len(), 3, "Usage: risc-v-emulator <isa> <filename>");
 
-    let mut file = File::open(&args[1])?;
+    let mut file = File::open(&args[2])?;
     let mut code = Vec::new();
     file.read_to_end(&mut code)?;
 
-    let mut cpu: Cpu<RV32I, 32> = Cpu::with_code(&code);
+    match args[1].to_uppercase().as_str() {
+        "RV32I" => run(RV32I::with_code(&code, None)),
+        "RV32E" => run(RV32E::with_code(&code, None)),
+        "RV64I" => {
+            run(RV64I::with_code(&code, None));
+        }
+        _ => {}
+    }
 
+    Ok(())
+}
+
+fn run<XLEN: XlenU, const REG_COUNT: usize, CPU: Cpu<XLEN, REG_COUNT>>(mut cpu: CPU) {
     let mut cycles = 0;
     let t_start = Instant::now();
 
     // start execution
     loop {
         cycles += 1;
-        if let Err(e) = cpu.cycle() {
-            eprintln!("Error: {e} Dumping registers:\n{:?}", cpu.dump_registers());
-            break;
+
+        match cpu.cycle() {
+            Err(CPUError::Halt) => {
+                println!("{}", CPUError::<XLEN>::Halt);
+                break;
+            }
+            Err(e) => {
+                eprintln!("Error: {e} Dumping registers:\n{:?}", cpu.dump_registers());
+                break;
+            }
+            _ => {}
         }
     }
 
@@ -37,16 +57,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let freq = 1. / ns_per_cycle as f32;
 
     println!(
-        "Cycles: {cycles} | Elapsed: {} | t/cycle: {} | {} GHz",
+        "Cycles: {cycles} | Elapsed: {} | t/cycle: {} ns | {} GHz",
         human_time(elapsed),
-        human_time(ns_per_cycle),
+        ns_per_cycle,
         freq
     );
     println!("Writing memory dump...");
 
     fs::write("mem.dump", cpu.dump_memory()).expect("Could not write memory dump!");
-
-    Ok(())
 }
 
 fn human_time(mut d: u128) -> String {
