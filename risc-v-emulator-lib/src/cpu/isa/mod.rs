@@ -1,15 +1,16 @@
 use std::fmt::{Debug, Display, UpperHex};
 use std::ops::Range;
 
-use num_traits::ops::overflowing::OverflowingAdd;
 use num_traits::{AsPrimitive, NumAssign, PrimInt, Signed, Unsigned, WrappingAdd, WrappingSub};
+use num_traits::ops::overflowing::OverflowingAdd;
 
 pub use rv32e::RV32E;
 pub use rv32i::RV32I;
 pub use rv64i::RV64I;
 
-use crate::cpu::isa::ext::float::FloatExt;
 use crate::cpu::{CPUError, RegisterDump};
+use crate::cpu::isa::ext::float::FloatExt;
+use crate::cpu::isa::ext::M;
 use crate::memory::Bus;
 
 mod rv32i;
@@ -18,7 +19,7 @@ mod rv32e;
 
 mod rv64i;
 
-mod ext;
+pub mod ext;
 
 pub trait XlenU:
     'static
@@ -93,8 +94,8 @@ impl XlenI for i32 {
 pub trait Cpu<XLEN: XlenU, const REG_COUNT: usize> {
     const ISA_ID: &'static str;
 
-    fn new(bus: Bus<XLEN>, dram_mapping: Range<XLEN>, float_ext: Option<FloatExt>) -> Self;
-    fn with_code(code: &[u8], float_ext: Option<FloatExt>) -> Self;
+    fn new(bus: Bus<XLEN>, dram_mapping: Range<XLEN>, float_ext: Option<FloatExt>, mul_ext: Option<M>) -> Self;
+    fn with_code(code: &[u8], float_ext: Option<FloatExt>, mul_ext: Option<M>) -> Self;
 
     fn isa_id(&self) -> &'static str {
         Self::ISA_ID

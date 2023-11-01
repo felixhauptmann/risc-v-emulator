@@ -3,6 +3,7 @@ use std::ops::Range;
 use crate::cpu::isa::ext::float::FloatExt;
 use crate::cpu::isa::{Cpu, RV32I};
 use crate::cpu::{CPUError, RegisterDump};
+use crate::cpu::isa::ext::mul::M;
 use crate::memory::{Bus, Dram, Memory};
 
 pub struct RV32E {
@@ -16,7 +17,7 @@ pub struct RV32E {
 impl Cpu<u32, 16> for RV32E {
     const ISA_ID: &'static str = "RV32E";
 
-    fn new(bus: Bus<u32>, dram_mapping: Range<u32>, float_ext: Option<FloatExt>) -> Self {
+    fn new(bus: Bus<u32>, dram_mapping: Range<u32>, float_ext: Option<FloatExt>, _mul_ext: Option<M>) -> Self {
         let mut cpu = Self {
             pc: 0,
             bus,
@@ -30,7 +31,7 @@ impl Cpu<u32, 16> for RV32E {
         cpu
     }
 
-    fn with_code(code: &[u8], float_ext: Option<FloatExt>) -> Self {
+    fn with_code(code: &[u8], float_ext: Option<FloatExt>, mul_ext: Option<M>) -> Self {
         const DRAM_BASE: usize = 0x5000_0000;
         const DRAM_SIZE: usize = 1024 * 1024 * 128;
 
@@ -43,6 +44,7 @@ impl Cpu<u32, 16> for RV32E {
             )]),
             (DRAM_BASE as u32)..(DRAM_BASE + DRAM_SIZE) as u32,
             float_ext,
+            mul_ext
         )
     }
 

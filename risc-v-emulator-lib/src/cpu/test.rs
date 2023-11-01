@@ -88,7 +88,7 @@ mod instructions {
 
     /// test runner for instruction tests
     fn execute_insn_test(name: &str, testcase: &str, binary: &[u8]) {
-        let mut cpu: RV32I = RV32I::with_code(binary, None);
+        let mut cpu: RV32I = RV32I::with_code(binary, None, None);
 
         loop {
             // were currently just waiting for the cpu to run into empty memory

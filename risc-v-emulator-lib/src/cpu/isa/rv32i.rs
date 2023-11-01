@@ -3,7 +3,9 @@ use std::ops::Range;
 use crate::cpu::isa::ext::float::FloatExt;
 use crate::cpu::isa::{Cpu, RV32E, RV64I};
 use crate::cpu::{CPUError, RegisterDump};
+use crate::cpu::isa::ext::mul::M;
 use crate::memory::{Bus, Dram, Memory};
+use crate::cpu::isa::ext::IsaExt;
 
 macro_rules! impl_rv32i_exec {
     ($XLENU:ty, $XLENI:ty, $self:ident, $instruction:ident, $INSN_SIZE:expr) => {
@@ -249,8 +251,9 @@ macro_rules! impl_rv32i_exec {
 pub struct RV32I {
     pc: u32,
     bus: Bus<u32>,
-    registers: [u32; 32],
+    pub(crate) registers: [u32; 32],
     _float_ext: Option<FloatExt>,
+    mul_ext: Option<M>,
     dram_mapping: Range<u32>,
 }
 
@@ -282,12 +285,13 @@ impl RV32I {
 impl Cpu<u32, 32> for RV32I {
     const ISA_ID: &'static str = "RV32I";
 
-    fn new(bus: Bus<u32>, dram_mapping: Range<u32>, float_ext: Option<FloatExt>) -> Self {
+    fn new(bus: Bus<u32>, dram_mapping: Range<u32>, float_ext: Option<FloatExt>, mul_ext: Option<M>) -> Self {
         let mut cpu = Self {
             pc: 0,
             bus,
             registers: [0; 32],
             _float_ext: float_ext,
+            mul_ext,
             dram_mapping,
         };
 
@@ -296,7 +300,7 @@ impl Cpu<u32, 32> for RV32I {
         cpu
     }
 
-    fn with_code(code: &[u8], float_ext: Option<FloatExt>) -> Self {
+    fn with_code(code: &[u8], float_ext: Option<FloatExt>, mul_ext: Option<M>) -> Self {
         const DRAM_BASE: usize = 0x5000_0000;
         const DRAM_SIZE: usize = 1024 * 1024 * 128;
 
@@ -309,6 +313,7 @@ impl Cpu<u32, 32> for RV32I {
             )]),
             (DRAM_BASE as u32)..(DRAM_BASE + DRAM_SIZE) as u32,
             float_ext,
+            mul_ext
         )
     }
 
@@ -324,7 +329,14 @@ impl Cpu<u32, 32> for RV32I {
     }
 
     fn execute(&mut self, instruction: u32) -> Result<(), CPUError<u32>> {
-        Self::exec_rv32i(self, instruction, 4)
+        match Self::exec_rv32i(self, instruction, 4) {
+            Err(CPUError::InstructionNotImplemented(_)) if self.mul_ext.is_some() => {
+                println!("trying M ext");
+                M::execute(self, instruction)?
+            }
+            res => res?
+        };
+        Ok(())
     }
 
     fn fetch(&self) -> Result<u32, CPUError<u32>> {

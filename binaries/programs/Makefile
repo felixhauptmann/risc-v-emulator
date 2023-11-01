@@ -10,11 +10,11 @@ optlvl := 3
 %.o: %.c
 	riscv64-unknown-elf-gcc -march=$(arch) -mabi=$(abi) -Wall -Werror -O$(optlvl) -g -nostdlib -ffreestanding -fanalyzer -c $^ -o $@
 
-crt0.o: crt0.s
+%.o: %.s
 	riscv64-unknown-elf-as -march=$(arch) -mabi=$(abi) -g crt0.s -o crt0.o
 
 .PRECIOUS: %.elf
-%.elf: %.o crt0.o $(lib_sources)
+%.elf: %.o crt0.o mulfixed.S $(lib_sources)
 	riscv64-unknown-elf-gcc -march=$(arch) -mabi=$(abi) -Wall -Werror -O$(optlvl) -g -nostdlib -ffreestanding -fanalyzer -T linker.ld $^ -o $@ -lgcc
 
 %.bin: %.elf
@@ -34,6 +34,11 @@ rv32e: all
 rv64i: arch := rv64i
 rv64i: abi := lp64
 rv64i: all
+
+.phony: rv32im
+rv32im: arch := rv32im
+rv32im: abi := ilp32
+rv32im: all
 
 .phony: all
 all: clean $(binaries)

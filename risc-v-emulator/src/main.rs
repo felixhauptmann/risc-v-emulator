@@ -1,12 +1,13 @@
+use std::{env, fs};
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::time::Instant;
-use std::{env, fs};
 
-use risc_v_emulator_lib::cpu::isa::RV32I;
-use risc_v_emulator_lib::cpu::isa::{Cpu, XlenU, RV32E, RV64I};
 use risc_v_emulator_lib::cpu::CPUError;
+use risc_v_emulator_lib::cpu::isa::{Cpu, RV32E, RV64I, XlenU};
+use risc_v_emulator_lib::cpu::isa::RV32I;
+use risc_v_emulator_lib::cpu::isa::ext::M;
 
 fn main() -> Result<(), Box<dyn Error>> {
     env::set_var("RUST_BACKTRACE", "1");
@@ -20,12 +21,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     file.read_to_end(&mut code)?;
 
     match args[1].to_uppercase().as_str() {
-        "RV32I" => run(RV32I::with_code(&code, None)),
-        "RV32E" => run(RV32E::with_code(&code, None)),
+        "RV32I" => run(RV32I::with_code(&code, None, None)),
+        "RV32E" => run(RV32E::with_code(&code, None, None)),
         "RV64I" => {
-            run(RV64I::with_code(&code, None));
+            run(RV64I::with_code(&code, None, None));
         }
-        _ => {}
+        "RV32IM" => {run(RV32I::with_code(&code, None, Some(M{})))}
+        isa => {
+            println!("{isa} is not available!");
+        }
     }
 
     Ok(())

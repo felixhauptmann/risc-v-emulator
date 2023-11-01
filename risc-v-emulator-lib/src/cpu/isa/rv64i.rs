@@ -85,6 +85,7 @@ macro_rules! impl_rv64i_exec {
     }};
 }
 pub(crate) use impl_rv64i_exec;
+use crate::cpu::isa::ext::mul::M;
 
 pub struct RV64I {
     pub(super) pc: u64,
@@ -103,7 +104,7 @@ impl RV64I {
 impl Cpu<u64, 32> for RV64I {
     const ISA_ID: &'static str = "RV64I";
 
-    fn new(bus: Bus<u64>, dram_mapping: Range<u64>, float_ext: Option<FloatExt>) -> Self {
+    fn new(bus: Bus<u64>, dram_mapping: Range<u64>, float_ext: Option<FloatExt>, _mul_ext: Option<M>) -> Self {
         let mut cpu = Self {
             pc: 0,
             bus,
@@ -117,7 +118,7 @@ impl Cpu<u64, 32> for RV64I {
         cpu
     }
 
-    fn with_code(code: &[u8], float_ext: Option<FloatExt>) -> Self {
+    fn with_code(code: &[u8], float_ext: Option<FloatExt>, mul_ext: Option<M>) -> Self {
         const DRAM_BASE: usize = 0x5000_0000;
         const DRAM_SIZE: usize = 1024 * 1024 * 128;
 
@@ -130,6 +131,7 @@ impl Cpu<u64, 32> for RV64I {
             )]),
             (DRAM_BASE as u64)..(DRAM_BASE + DRAM_SIZE) as u64,
             float_ext,
+            mul_ext
         )
     }
 
